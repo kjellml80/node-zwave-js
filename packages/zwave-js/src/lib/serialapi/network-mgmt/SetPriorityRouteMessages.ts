@@ -2,10 +2,12 @@ import {
 	MAX_NODES,
 	MAX_REPEATERS,
 	MessagePriority,
+	NodeIDType,
 	ZWaveDataRate,
 	ZWaveError,
 	ZWaveErrorCodes,
 	encodeNodeID,
+	parseNodeID,
 	type MessageOrCCLogEntry,
 	type MessageRecord,
 } from "@zwave-js/core";
@@ -135,7 +137,19 @@ export class SetPriorityRouteResponse
 		options: MessageDeserializationOptions,
 	) {
 		super(host, options);
-		this.success = this.payload[0] !== 0;
+		// Byte(s) 0/1 are the node ID - this is missing from the Host API specs
+		const { /* nodeId, */ bytesRead } = parseNodeID(
+			this.payload,
+			this.host.nodeIdType,
+			0,
+		);
+		// When used with 16-bit node IDs, the response is missing the status byte (tested up to FW 7.19.2)
+		// In that case, we just assume success until the firmware is fixed.
+		if (this.host.nodeIdType === NodeIDType.Long) {
+			this.success = true;
+		} else {
+			this.success = this.payload[bytesRead] !== 0;
+		}
 	}
 
 	isOK(): boolean {
